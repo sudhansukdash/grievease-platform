@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+
+# Expo cache and build files
+.expo/
+dist/
+web-build/
+
+# Native folders (EAS builds these in the cloud, no need to track them!)
+android/
+ios/
+
+# Editor Settings
+.vscode/
+
+# Logs
+npm-debug.*
+yarn-error.*
+
+# Mac system files
+.DS_Store
+
+# Environment Variables
+.env
+.env.*
+.env.local
+
+# App Signing Credentials (Security!)
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+google-services.json

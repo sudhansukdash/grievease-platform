@@ -1,0 +1,36 @@
+# Dependencies
+node_modules
+
+# Expo cache
+.expo
+.expo-shared
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Editor
+.vscode
+.idea
+
+# Native (Expo managed)
+android
+ios
+
+# Unnecessary folders
+app-example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# Docs
+README.md
+
+# Dev configs
+eslint.config.js
+
+# OS
+.DS_Store

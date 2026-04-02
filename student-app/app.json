@@ -1,0 +1,60 @@
+{
+  "expo": {
+    "name": "GrievEase",
+    "slug": "greivance-redressal",
+    "version": "1.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "greivanceredressal",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#FFFFFF",
+        "foregroundImage": "./assets/images/icon.png"
+      },
+      "permissions": ["NOTIFICATIONS"],
+      "edgeToEdgeEnabled": true,
+      "package": "com.anonymous.greivanceredressal",
+      "googleServicesFile": "./google-services.json",
+      "versionCode": 2
+    },
+    "plugins": [
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow GrievEase to use Face ID to unlock your dashboard securely."
+        }
+      ],
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/icon.png",
+          "backgroundColor": "#F8FAFC",
+          "resizeMode": "contain"
+        }
+      ],
+      "expo-font",
+      "@react-native-community/datetimepicker",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification-icon.png",
+          "color": "#5A60F6"
+        }
+      ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ff282208-3714-4418-916c-8cd21512bf01"
+      }
+    },
+    "owner": "sudhansukdash"
+  }
+}

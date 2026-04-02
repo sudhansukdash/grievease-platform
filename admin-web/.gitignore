@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+dist-ssr/
+
+# Firebase Cache
+.firebase/
+
+# Local Environment Variables
+.env
+.env.*
+.env.local
+.env.*.local
+
+# System Files
+.DS_Store
