@@ -115,12 +115,36 @@ export default function IndexScreen() {
       const userDoc = await getDoc(doc(db, "students", user.uid));
       if (userDoc.exists()) {
         const userData = userDoc.data();
+        // Suspended
         if (userData.isSuspended) {
           await auth.signOut();
           finalizeAuth("/log_student");
-        } else {
-          finalizeAuth("/student_dash");
+          return;
         }
+
+        // Pending
+        if (userData.status === "pending") {
+          await auth.signOut();
+          finalizeAuth("/log_student");
+          return;
+        }
+
+        // Rejected
+        if (userData.status === "rejected") {
+          await auth.signOut();
+          finalizeAuth("/log_student");
+          return;
+        }
+
+        // Unknown / Not approved
+        if (userData.status !== "approved") {
+          await auth.signOut();
+          finalizeAuth("/log_student");
+          return;
+        }
+
+        // Only approved
+        finalizeAuth("/student_dash");
       } else {
         finalizeAuth("/log_student");
       }

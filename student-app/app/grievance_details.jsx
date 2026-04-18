@@ -236,28 +236,21 @@ export default function GrievanceDetails() {
               <View style={styles.footerSection}>
                 <Text style={styles.sectionLabel}>OFFICIAL REMARKS</Text>
 
-                {complaint.adminRemarks ? (
+                {(displayLabel === "Resolved" || displayLabel === "Rejected") && (complaint.resolutionRemark || complaint.adminRemarks) ? (
                   <View style={[styles.statusBox, { backgroundColor: theme.bg }]}>
-                    <View style={styles.statusBoxHeader}>
 
-                      <Ionicons
-                        name={displayLabel === "Rejected" ? "warning" : "chatbox-ellipses"}
-                        size={18}
-                        color={theme.text}
-                      />
-                      <Text style={[styles.statusBoxTitle, { color: theme.text }]}>
-                        {displayLabel === "Rejected" ? "Reason for Rejection" : "Admin Response"}
-                      </Text>
-                    </View>
-                    <Text style={[styles.statusBoxBody, { color: theme.text }]}>
-                      {complaint.adminRemarks}
+                    <Text style={[styles.statusBoxBody, { color: theme.text, fontFamily: "Manrope_600SemiBold" }]}>
+                      {displayLabel === "Resolved" ? "Action Taken: " : ""}
+                      {displayLabel === "Rejected" ? "Reason for Rejection: " : ""}
+                      {complaint.resolutionRemark || complaint.adminRemarks}
                     </Text>
+
                   </View>
                 ) : (
                   <View style={[styles.statusBox, { backgroundColor: theme.bg }]}>
                     <View style={styles.statusBoxHeader}>
-                      <Ionicons name="information-circle" size={18} color={theme.text} />
-                      <Text style={[styles.statusBoxTitle, { color: theme.text }]}>Current Status</Text>
+                      <Ionicons name="time" size={18} color={theme.text} />
+                      <Text style={[styles.statusBoxTitle, { color: theme.text }]}>Live Status</Text>
                     </View>
                     <Text style={[styles.statusBoxBody, { color: theme.text }]}>
                       {renderStatusMessage()}

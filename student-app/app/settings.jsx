@@ -188,14 +188,14 @@ export default function Settings() {
           <View style={styles.card}>
             <InfoItem icon="code-slash-outline" title="Developer" value="sudhansukdash" />
             <View style={styles.divider} />
-            <InfoItem icon="git-branch-outline" title="Version" value="v1.0.0 (Beta)" />
+            <InfoItem icon="git-branch-outline" title="Version" value="v1.2.0" />
             <View style={styles.divider} />
-            <TouchableOpacity style={styles.row} onPress={() => Linking.openURL("https://github.com/sudhansukdash/greivance-redressal")}>
+            <TouchableOpacity style={styles.row} onPress={() => Linking.openURL("https://github.com/sudhansukdash")}>
               <View style={styles.rowLeft}>
                 <View style={[styles.iconBox, { backgroundColor: "#F1F5F9" }]}>
                   <Ionicons name="logo-github" size={20} color="#333" />
                 </View>
-                <Text style={styles.settingTitle}>Project Repository</Text>
+                <Text style={styles.settingTitle}>View on GitHub</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
             </TouchableOpacity>

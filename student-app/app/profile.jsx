@@ -39,7 +39,18 @@ const COLORS = {
   inputBg: "#F1F5F9",
   border: "#E2E8F0"
 };
-
+const BRANCH_LABEL_MAP = {
+  IT: "Information Technology",
+  EE: "Electrical",
+  ME: "Mechanical",
+  CE: "Civil",
+  ETC: "E&TC",
+};
+const YEAR_LABEL_MAP = {
+  "1": "1st Year",
+  "2": "2nd Year",
+  "3": "3rd Year",
+};
 export default function Profile() {
   const router = useRouter();
   const [userData, setUserData] = useState(null);
@@ -143,7 +154,9 @@ export default function Profile() {
 
                 <View style={styles.nameSection}>
                   <Text style={styles.nameText}>{userData?.fullName}</Text>
-                  <Text style={styles.roleText}>Student • {userData?.branch}</Text>
+                  <Text style={styles.roleText}>
+                    Student • {BRANCH_LABEL_MAP[userData?.branch] || userData?.branch}
+                  </Text>
                 </View>
 
                 <View style={styles.divider} />
@@ -152,7 +165,7 @@ export default function Profile() {
                 <View style={styles.gridContainer}>
                   <InfoBox
                     label="Academic Year"
-                    value={userData?.year || "N/A"}
+                    value={YEAR_LABEL_MAP[userData?.year] || userData?.year || "N/A"}
                     icon="calendar-outline"
                   />
 

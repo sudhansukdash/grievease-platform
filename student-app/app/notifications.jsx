@@ -36,6 +36,22 @@ const COLORS = {
   red: "#EF4444"
 };
 
+const getDisplayStatus = (status) => {
+  const s = status ? status.toLowerCase().trim().replace(/[-_]/g, " ") : "";
+  if (["resolved", "completed"].includes(s)) return "Resolved";
+  if (["rejected", "closed"].includes(s)) return "Rejected";
+  if (["assigned", "in progress", "inprogress", "on hold"].includes(s)) return "In Progress";
+  if (["open", "pending", "new"].includes(s)) return "Pending";
+  return "Pending";
+};
+
+const getStudentStateFromAction = (action) => {
+  const s = action ? action.toUpperCase() : "";
+  if (s.includes("RESOLVED")) return "Resolved";
+  if (s.includes("REJECTED") || s.includes("SPAM")) return "Rejected";
+  if (s.includes("IN PROGRESS") || s.includes("ON HOLD") || s.includes("ASSIGNED") || s.includes("FORWARDED")) return "In Progress";
+  return "Updated";
+};
 export default function Notifications() {
   const router = useRouter();
   const [notifications, setNotifications] = useState([]);
@@ -50,7 +66,6 @@ export default function Notifications() {
     const user = auth.currentUser;
     if (!user) return;
 
-
     const q = query(
       collection(db, "complaints"),
       where("studentId", "==", user.uid),
@@ -63,14 +78,51 @@ export default function Notifications() {
 
       snapshot.forEach((doc) => {
         const data = doc.data();
-        // Show if Resolved/Rejected OR if Pending but has admin remarks
-        if (data.status !== "Pending" || data.adminRemarks) {
-          updates.push({
-            id: doc.id,
-            ...data,
+
+        // ALWAYS push the baseline "Grievance Submitted" card
+        updates.push({
+          id: `${doc.id}-created`,
+          complaintId: doc.id,
+          category: data.category || "General",
+          action: "Grievance Submitted",
+          note: "",
+          timestamp: data.createdAt,
+          isResolved: false,
+          isRejected: false,
+          isInitial: true // Flags this as the starting point
+        });
+
+        // Loop through the logs array to stack admin updates safely
+        if (data.logs && Array.isArray(data.logs)) {
+          data.logs.forEach((log, index) => {
+            const actionText = log.action ? log.action.toUpperCase() : "";
+
+            updates.push({
+              id: `${doc.id}-log-${index}`,
+              complaintId: doc.id,
+              category: data.category || "General",
+              studentState: getStudentStateFromAction(log.action), // <-- ADDED SAFE STATE
+              note: log.note,
+              timestamp: log.timestamp,
+              isResolved: actionText.includes("RESOLVED"),
+              isRejected: actionText.includes("REJECTED") || actionText.includes("SPAM"),
+              isInitial: false
+            });
           });
         }
       });
+
+      // BULLETPROOF SORTING: Safely extract time regardless of timestamp format
+      const getSafeTime = (ts) => {
+        if (!ts) return 0;
+        if (ts.toMillis) return ts.toMillis();
+        if (ts.toDate) return ts.toDate().getTime();
+        if (ts.seconds) return ts.seconds * 1000;
+        return new Date(ts).getTime() || 0;
+      };
+
+      // Sort ALL notifications from newest to oldest
+      updates.sort((a, b) => getSafeTime(b.timestamp) - getSafeTime(a.timestamp));
 
       setNotifications(updates);
       setLoading(false);
@@ -79,7 +131,6 @@ export default function Notifications() {
       setLoading(false);
     });
 
-    // Cleanup when leaving screen
     return () => unsubscribe();
   }, []);
 
@@ -102,46 +153,54 @@ export default function Notifications() {
   if (!fontsLoaded) return null;
 
   const renderNotification = ({ item }) => {
-    const isResolved = item.status === "Resolved";
-    const isRejected = item.status === "Rejected";
-
-    let iconName = "chatbubble-ellipses";
+    let iconName = "time";
     let themeColor = COLORS.blue;
     let bgColor = "#EFF6FF";
+    let title = "Admin Update";
 
-    if (isResolved) {
+    // Assign specific styles based on the timeline event
+    if (item.isInitial) {
+      iconName = "document-text";
+      themeColor = COLORS.primary;
+      bgColor = "#EEF2FF";
+      title = "Ticket Submitted";
+    } else if (item.isResolved) {
       iconName = "checkmark-done";
       themeColor = COLORS.green;
       bgColor = "#ECFDF5";
-    } else if (isRejected) {
+      title = "Complaint Resolved";
+    } else if (item.isRejected) {
       iconName = "close-circle";
       themeColor = COLORS.red;
       bgColor = "#FEF2F2";
+      title = "Complaint Closed";
     }
 
     return (
       <TouchableOpacity
         style={styles.notifCard}
         activeOpacity={0.7}
-        onPress={() => router.push({ pathname: "/grievance_details", params: { id: item.id } })}
+        onPress={() => router.push({ pathname: "/grievance_details", params: { id: item.complaintId } })}
       >
         <View style={[styles.iconContainer, { backgroundColor: bgColor }]}>
           <Ionicons name={iconName} size={24} color={themeColor} />
         </View>
 
         <View style={styles.textContainer}>
-          <Text style={styles.notifTitle}>
-            {isResolved ? "Complaint Resolved" : isRejected ? "Complaint Closed" : "Admin Update"}
-          </Text>
+          <Text style={styles.notifTitle}>{title}</Text>
 
-          <Text style={styles.notifBody} numberOfLines={2}>
-            {item.adminRemarks
-              ? `Admin: "${item.adminRemarks}"`
-              : `Your grievance regarding "${item.category}" has been marked as ${item.status}.`}
+          <Text style={styles.notifBody}>
+            {item.isInitial
+              ? `Your grievance regarding "${item.category}" has been successfully sent to the authorities.`
+              : (item.isResolved || item.isRejected)
+                ? (item.note && item.note.trim() !== ""
+                  ? `Admin: "${item.note}"`
+                  : `Your grievance regarding "${item.category}" has been closed.`)
+                : `Your grievance regarding "${item.category}" was marked as ${item.studentState.toUpperCase()} by the authorities.`}
           </Text>
 
           <Text style={styles.notifTime}>
-            {formatDate(item.createdAt)}
+            {formatDate(item.timestamp)}
           </Text>
         </View>
 
@@ -251,7 +310,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 20,
     marginBottom: 12,
-    alignItems: "center",
+    alignItems: "flex-start",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.04,

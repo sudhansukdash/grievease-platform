@@ -167,29 +167,54 @@ export default function StudentLogin() {
       if (!isMounted.current) return;
 
       const user = userCredential.user;
-      await user.reload();
+
 
       // AUTOMATED SUSPENSION CHECK
       const userDoc = await getDoc(doc(db, "students", user.uid));
-      if (userDoc.exists() && userDoc.data().isSuspended === true) {
+      if (!userDoc.exists()) {
+        setError("Account data not found. Please contact support.");
+        await auth.signOut();
+        setLoading(false);
+        return;
+      }
+
+      const userData = userDoc.data();
+
+      // ALLOW ONLY approved
+      if (userData.isSuspended === true) {
         setIsSuspended(true);
-        setStrikeCount(userDoc.data().spamStrikes || 3);
+        setStrikeCount(userData.spamStrikes || 3);
         await auth.signOut(); // Force logout
         setLoading(false);
         return;
       }
-      if (userDoc.exists() && userDoc.data().settings?.biometrics === true) {
-        await AsyncStorage.setItem("biometric_enabled", "true");
-      } else {
-        await AsyncStorage.removeItem("biometric_enabled");
-      }
 
-      if (!user.emailVerified) {
-        setError("Please verify your email before logging in.");
+      // BLOCK: Pending
+      if (userData.status === "pending") {
+        setError("Your account is under review by HOD. Please wait for approval.");
         setErrorFields({ email: true, password: false });
         await auth.signOut();
         setLoading(false);
         return;
+      }
+
+      // BLOCK: Rejected
+
+      if (userData.status === "rejected") {
+        const reason = userData.remarks || "No reason provided by HOD";
+
+        setError(`Your account was rejected.\nReason: ${reason}`);
+        setErrorFields({ email: true, password: false });
+
+        await auth.signOut();
+        setLoading(false);
+        return;
+      }
+
+      if (userData.settings?.biometrics === true) {
+        await AsyncStorage.setItem("biometric_enabled", "true");
+      } else {
+        await AsyncStorage.removeItem("biometric_enabled");
       }
 
       await updateStudentData().catch(e => console.error(e));

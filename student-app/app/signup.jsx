@@ -27,9 +27,10 @@ import {
 } from "@expo-google-fonts/poppins";
 import { Inter_400Regular } from "@expo-google-fonts/inter";
 import { auth, db } from "../firebaseConfig";
-import { createUserWithEmailAndPassword, sendEmailVerification, updateProfile } from "firebase/auth";
+import { createUserWithEmailAndPassword, updateProfile, signOut } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 import SuccessModal from "../components/SuccessModal";
+
 
 const { width, height } = Dimensions.get("window");
 
@@ -86,6 +87,11 @@ export default function Signup() {
       setErrorFields(["email"]);
       return;
     }
+    if (phone && phone.length !== 10) {
+      setErrorMessage("Enter valid 10-digit phone number");
+      setErrorFields(["phone"]);
+      return;
+    }
 
     setErrorFields(missing);
     if (missing.length > 0) {
@@ -96,22 +102,29 @@ export default function Signup() {
     try {
       setLoading(true);
       const formattedName = formatName(name);
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
       const user = userCredential.user;
-      await updateProfile(user, { displayName: formattedName });
-      await sendEmailVerification(user);
 
-      await setDoc(doc(db, "students", user.uid), {
-        fullName: formattedName,
-        email,
-        branch,
-        year,
-        phone: phone || null,
-        verified: false,
-        approved: false,
-        createdAt: new Date().toISOString(),
-      });
+      try {
+        await updateProfile(user, { displayName: formattedName });
 
+        await setDoc(doc(db, "students", user.uid), {
+          fullName: formattedName,
+          email,
+          branch,
+          year,
+          phone: phone || null,
+          status: "pending",
+          createdAt: new Date().toISOString(),
+        });
+
+      } catch (err) {
+        // rollback if Firestore fails
+        await user.delete();
+        throw err;
+      }
+
+      await signOut(auth);
       setLoading(false);
       setModalVisible(true);
     } catch (error) {
@@ -212,9 +225,9 @@ export default function Signup() {
                     open={openYear}
                     value={year}
                     items={[
-                      { label: "First Year", value: "1st" },
-                      { label: "Second Year", value: "2nd" },
-                      { label: "Third Year", value: "3rd" },
+                      { label: "First Year", value: "1" },
+                      { label: "Second Year", value: "2" },
+                      { label: "Third Year", value: "3" },
                     ]}
                     setOpen={setOpenYear}
                     setValue={setYear}
@@ -260,6 +273,7 @@ export default function Signup() {
                 <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
                   <TouchableOpacity
                     activeOpacity={0.9}
+                    disabled={loading}
                     onPressIn={() => Animated.spring(scaleAnim, { toValue: 0.96, useNativeDriver: true }).start()}
                     onPressOut={() => {
                       Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true }).start();
@@ -280,7 +294,7 @@ export default function Signup() {
       <SuccessModal
         visible={modalVisible}
         title="Welcome Aboard!"
-        message="Check your email for a verification link to activate your account."
+        message="Your account request has been submitted. You will be able to log in once it is approved by your HOD."
         buttonText="Go to Login"
         onPress={() => { setModalVisible(false); router.push("/log_student"); }}
       />
