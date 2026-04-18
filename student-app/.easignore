@@ -15,8 +15,8 @@ node_modules
 .idea
 
 # Native (Expo managed)
-android
-ios
+android/
+ios/
 
 # Unnecessary folders
 app-example

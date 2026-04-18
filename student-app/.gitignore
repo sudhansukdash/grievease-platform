@@ -32,5 +32,3 @@ yarn-error.*
 *.key
 *.mobileprovision
 *.orig.*
-
-google-services.json

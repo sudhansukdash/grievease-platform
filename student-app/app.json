@@ -2,7 +2,7 @@
   "expo": {
     "name": "GrievEase",
     "slug": "greivance-redressal",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "greivanceredressal",
@@ -21,7 +21,7 @@
       "edgeToEdgeEnabled": true,
       "package": "com.anonymous.greivanceredressal",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 2
+      "versionCode": 3
     },
     "plugins": [
       [
