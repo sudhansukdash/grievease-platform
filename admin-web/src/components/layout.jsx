@@ -10,6 +10,7 @@ const Layout = () => {
   const [notifications, setNotifications] = useState([]);
 
   const [userRole, setUserRole] = useState(null);
+  const [userBranchCode, setUserBranchCode] = useState(null);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const { theme, isDirty, setIsDirty } = useTheme();
@@ -24,13 +25,16 @@ const Layout = () => {
       setNotifications(snap.docs.map(d => d.data()));
     });
 
-    // Fetch User Role (For Menu Filtering)
     const fetchRole = async () => {
       const user = auth.currentUser;
       if (user) {
         try {
           const snap = await getDoc(doc(db, "admins", user.uid));
-          if (snap.exists()) setUserRole(snap.data().role);
+          if (snap.exists()) {
+  const data = snap.data();
+  setUserRole(data.role);
+  setUserBranchCode(data.branchCode); 
+}
         } catch (e) { console.error(e); }
       }
     };
@@ -64,13 +68,15 @@ const Layout = () => {
     navigate("/");
   };
 
-  // RESTRICTED ACCOUNTS HERE
+  // RESTRICTED ACCOUNTS
   const menuItems = [
     { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
     { name: "Reports", path: "/reports", icon: BarChart3 },
     { name: "Members", path: "/manage-admins", icon: Users },
     { name: "Restricted Accounts", path: "/blocked-students", icon: ShieldAlert },
+    { name: "Approve Requests", path: "/approve", icon: Users },
     { name: "Settings", path: "/settings", icon: Settings },
+    
   ];
 
   return (
@@ -91,8 +97,11 @@ const Layout = () => {
 
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "10px", padding: "0 20px", overflowY: "auto" }}>
           {menuItems.map((item) => {
-            // SECURITY CHECK: Hide Members AND Restricted Accounts if not Principal
+            // Hide Members + Restricted Accounts if not Principal
             if ((item.name === "Members" || item.name === "Restricted Accounts") && userRole !== "PRINCIPAL") return null;
+
+            // Hide Approve Requests if NOT HOD
+            if (item.name === "Approve Requests" && (!userBranchCode || userRole !== "HOD")) return null;
 
             const isActive = location.pathname === item.path;
             return (
@@ -127,7 +136,6 @@ const Layout = () => {
         </div>
       </div>
 
-      {/* --- LOGOUT CONFIRMATION MODAL --- */}
       {showLogoutModal && (
         <div style={{
           position: "fixed", top: 0, left: 0, right: 0, bottom: 0,

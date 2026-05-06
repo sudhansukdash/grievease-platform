@@ -9,26 +9,23 @@ import Reports from "./pages/Reports";
 import ManageAdmins from "./pages/ManageAdmins";
 import ManageTicket from "./pages/ManageTicket"; 
 import BlockedStudents from "./pages/BlockedStudents"; 
+import ApproveRequests from "./pages/ApproveRequests";
 
 function App() {
   return (
     <ThemeProvider>
       <BrowserRouter>
         <Routes>
-          {/* Public Route */}
+        
           <Route path="/" element={<Login />} />
           
-          {/* Protected Routes (Wrapped in Layout) */}
           <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/manage-admins" element={<ManageAdmins />} />
-            
-
+            <Route path="/approve" element={<ApproveRequests />} />
             <Route path="/manage-ticket/:id" element={<ManageTicket />} />
-            
-
             <Route path="/blocked-students" element={<BlockedStudents />} />
             
           </Route>

@@ -113,16 +113,13 @@ const Dashboard = () => {
             if (adminSnap.data().role === "PRINCIPAL") {
               q = query(complaintsRef, orderBy("createdAt", "desc"));
             } else {
-              const myDept = adminSnap.data().department;
+              const myRoleTitle = adminSnap.data().roleTitle;
 
-              // This fetches tickets specifically assigned to your department.
-              // When you forward to 'Sports', the 'assignedDepartment' changes,
-              // and this query will automatically stop showing the ticket.
-              q = query(
-                complaintsRef,
-                where("assignedDepartment", "==", myDept),
-                orderBy("createdAt", "desc")
-              );
+q = query(
+  complaintsRef,
+  where("assignedTo", "==", myRoleTitle), 
+  orderBy("createdAt", "desc")
+);
             }
 
             // Catch snapshot errors
@@ -180,19 +177,15 @@ const Dashboard = () => {
       };
     }
 
-    const roleAllowedGrievances = grievances.filter(g => {
-      if (adminProfile?.role === "PRINCIPAL") return true;
+   const roleAllowedGrievances = grievances.filter(g => {
+  if (adminProfile?.role === "PRINCIPAL") return true;
 
-      // 1. Hide un-triaged tickets from HODs
-      if (g.status === "OPEN" || g.status === "Pending") return false;
+  // hide untriaged
+  if (g.status === "OPEN" || g.status === "Pending") return false;
 
-      // 2. Check if it's currently assigned to my department
-      const isMyDepartment = g.assignedDepartment === adminProfile?.department;
-
-      // If I forward it to another dept, 'isMyDepartment' becomes false 
-      // and it disappears from my active view.
-      return isMyDepartment;
-    });
+  
+  return g.assignedTo === adminProfile?.roleTitle;
+});
 
     const uniqueCategoriesInDB = [...new Set(roleAllowedGrievances.map(g => g.category))].filter(Boolean);
     const allActiveCategories = [...new Set([...APP_CATEGORIES, ...uniqueCategoriesInDB])];
@@ -383,7 +376,7 @@ const Dashboard = () => {
               </tr>
             </thead>
             <tbody>
-              {/* RESTORED EMPTY STATE */}
+              
               {dashboardData.filtered.length === 0 ? (
                 <tr>
                   <td colSpan="7" style={styles(theme).emptyTd}>
@@ -450,7 +443,6 @@ const Dashboard = () => {
   );
 };
 
-// STYLES MOVED TO BOTTOM
 const styles = (theme) => {
   if (!theme || !theme.colors) return {};
   return {
@@ -522,7 +514,7 @@ const styles = (theme) => {
     th: { padding: "16px 24px", textAlign: "left", fontSize: "11px", color: theme.colors.subText, textTransform: "uppercase", fontWeight: "700" },
     td: { padding: "16px 24px", fontSize: "14px", color: theme.colors.text },
 
-    // EMPTY STATE STYLES
+    // EMPTY STATE
     emptyTd: { padding: '80px 0', textAlign: 'center' },
     emptyWrapper: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' },
     emptyResetBtn: {

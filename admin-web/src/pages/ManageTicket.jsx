@@ -18,6 +18,15 @@ const DEPARTMENT_MAP = {
 const STATUS_OPTIONS = ["IN_PROGRESS", "ON_HOLD", "RESOLVED", "REJECTED"];
 const CATEGORIES = Object.keys(DEPARTMENT_MAP);
 
+const getStudentState = (status) => {
+  const s = status ? status.toLowerCase().trim().replace(/[-_]/g, " ") : "";
+  if (["resolved", "completed"].includes(s)) return "Resolved";
+  if (["rejected", "closed"].includes(s)) return "Rejected";
+  if (["assigned", "in progress", "inprogress", "on hold"].includes(s)) return "In Progress";
+  if (["open", "pending", "new"].includes(s)) return "Pending";
+  return "Pending";
+};
+
 const sendPushNotification = async (expoPushToken, messageBody, ticketTitle, ticketId) => {
   if (!expoPushToken) {
     console.warn("⚠️ Push blocked: No Expo Push Token provided!");
@@ -30,7 +39,7 @@ const sendPushNotification = async (expoPushToken, messageBody, ticketTitle, tic
       headers: {
         'Content-Type': 'application/json',
       },
-      // 2. Send the raw data to Vercel so it can build the message on the backend
+      // Send the raw data to Vercel so it can build the message on the backend
       body: JSON.stringify({
         expoPushToken: expoPushToken,
         messageBody: messageBody,
@@ -68,9 +77,11 @@ const ManageTicket = () => {
   const [assignedDepartment, setAssignedDepartment] = useState(""); // Replaces 'category'
   const [assignedTo, setAssignedTo] = useState("");
   const [status, setStatus] = useState("");
-  const [remarks, setRemarks] = useState("");
-  const [modalConfig, setModalConfig] = useState({ visible: false, title: "", message: "", isConfirm: false, isError: false, onConfirm: null });
-  const displayId = `#${id?.slice(-6).toUpperCase()}`;
+const [remarks, setRemarks] = useState("");
+const [spamReason, setSpamReason] = useState(""); // NEW SPAM STATE
+const [modalConfig, setModalConfig] = useState({ 
+  visible: false, title: "", message: "", isConfirm: false, isError: false, isSpamPrompt: false, onConfirm: null 
+});  const displayId = `#${id?.slice(-6).toUpperCase()}`;
 
   useEffect(() => {
     const fetchData = async () => {
@@ -118,6 +129,16 @@ const ManageTicket = () => {
   };
 
   const handleForward = async () => {
+    if (!assignedTo) {
+      setModalConfig({
+        visible: true,
+        title: "Select Assignee",
+        message: "Please select a person before forwarding.",
+        isConfirm: false,
+        isError: true,
+      });
+      return;
+    }
     let finalStatus = status;
     if (finalStatus === "OPEN") finalStatus = "IN_PROGRESS";
 
@@ -158,12 +179,12 @@ const ManageTicket = () => {
     if (assignedTo) officialsToLog.push(assignedTo);
 
     try {
-      // Force isSpam to false when forwarding
-      await updateDoc(doc(db, "complaints", id), {
+      // 1. Build the base update object
+      const updateData = {
         assignedDepartment: assignedDepartment,
         assignedTo: assignedTo,
         status: finalStatus,
-        isSpam: false, // Ensures the ticket is no longer flagged as spam
+        isSpam: false,
         visibilityTag: assignedTo || ticket.visibilityTag || "General",
         involvedOfficials: arrayUnion(...officialsToLog),
         logs: arrayUnion({
@@ -172,23 +193,46 @@ const ManageTicket = () => {
           user: currentAdminName,
           timestamp: new Date()
         })
-      });
+      };
 
-      // Send push notification to the student
-      if (student && student.expoPushToken && student.settings?.pushNotifications !== false) {
-        // If we reversed a spam mark, send a slightly different notification
-        const pushMessage = isSpamReversed
-          ? `Your grievance "${ticket.title}" has been restored and is now ${finalStatus.replace(/_/g, " ")}.`
-          : `Your grievance "${ticket.title}" is now marked as ${finalStatus.replace(/_/g, " ")}.`;
+      // 2. ENFORCE FINAL RESOLUTION MESSAGE
+      if (["RESOLVED", "REJECTED"].includes(finalStatus)) {
+          if (!remarks.trim()) {
+              setModalConfig({ visible: true, title: "Message Required", message: "Please provide a final message explaining the resolution.", isConfirm: false, isError: true });
+              return; // Stop execution
+          }
+          updateData.resolutionRemark = remarks.trim();
+          updateData.resolvedAt = new Date(); 
+      }
 
-        await sendPushNotification(student.expoPushToken, pushMessage, ticket.title, id);
+      await updateDoc(doc(db, "complaints", id), updateData);
+
+      // MINIMAL PUSH NOTIFICATIONS
+      if (student && student.expoPushToken && student.settings?.pushNotifications === true) {
+        const studentState = getStudentState(finalStatus);
+        
+        // Default minimal text
+        let notifTitle = "Grievance Update";
+        let pushMessage = `There is new activity on your "${ticket.title}" ticket.`;
+
+        // Contextual minimal text
+        if (isSpamReversed) {
+          notifTitle = "Strike Removed 🔄";
+          pushMessage = `Your ticket "${ticket.title}" has been restored.`;
+        } else if (studentState === "In Progress") {
+          notifTitle = "Moving Forward ⏳";
+          pushMessage = `The authorities are reviewing "${ticket.title}".`;
+        } else if (studentState === "Resolved") {
+          notifTitle = "Issue Resolved ✅";
+          pushMessage = `Action has been taken on "${ticket.title}".`;
+        } else if (studentState === "Rejected") {
+          notifTitle = "Ticket Closed 🔒";
+          pushMessage = `"${ticket.title}" was closed by the administration.`;
+        }
+
+        await sendPushNotification(student.expoPushToken, pushMessage, notifTitle, id);
       } else {
-        // This tells us if the database is missing data
-        console.warn("⚠️ Push skipped. Debug Info:", {
-          hasStudentData: !!student,
-          hasToken: !!student?.expoPushToken,
-          pushSettings: student?.settings?.pushNotifications
-        });
+        console.warn("⚠️ Push skipped...");
       }
 
       setModalConfig({
@@ -202,72 +246,75 @@ const ManageTicket = () => {
         onConfirm: () => navigate("/dashboard")
       });
 
-    } catch (error) {
+    } catch (error) { 
       console.error(error);
       setModalConfig({ visible: true, title: "Action Failed", message: "Failed to update the ticket. Please try again.", isConfirm: false, isError: true, onConfirm: null });
     }
   };
 
   const handleMarkAsSpamClick = () => {
+    setSpamReason(""); // Clear previous input
     setModalConfig({
       visible: true,
-      title: "Confirm Spam?",
-      message: "Are you sure you want to mark this grievance as SPAM? A strike will be applied to the student's account.",
+      title: "Confirm Spam & Apply Strike",
+      message: "Please provide a reason for marking this grievance as SPAM. This will be visible to the student.",
       isConfirm: true,
       isError: true,
+      isSpamPrompt: true, // Show the textbox
       onConfirm: executeMarkAsSpam
     });
   };
 
   const executeMarkAsSpam = async () => {
+    if (!spamReason.trim()) {
+      alert("You must provide a reason before marking this as spam.");
+      return;
+    }
+
     try {
-      // 1. Update the ticket status and logs
       await updateDoc(doc(db, "complaints", id), {
         status: "REJECTED",
         isSpam: true,
+        resolutionRemark: spamReason.trim(), 
         involvedOfficials: arrayUnion(currentAdminRoleTitle),
         logs: arrayUnion({
           action: "Marked as SPAM & Rejected",
-          note: "Student strike count incremented.",
+          note: `Reason given: ${spamReason.trim()}`, 
           user: currentAdminName,
           timestamp: new Date()
         })
       });
 
-      // 2. Send push notification to the student
-      if (student && student.expoPushToken && student.settings?.pushNotifications !== false) {
-        await sendPushNotification(student.expoPushToken, "REJECTED (Marked as Spam)", ticket.title, id);
+
+      if (student && student.expoPushToken && student.settings?.pushNotifications === true) {
+        const notifTitle = "Action Required ⚠️";
+        const pushMessage = "A spam strike has been applied to your account. Open the app to review the official remarks.";
+        await sendPushNotification(student.expoPushToken, pushMessage, notifTitle, id);
       }
 
-      // 3. Apply the background penalty to the student (Hidden from the UI)
+
       if (ticket.studentId) {
         const studentRef = doc(db, "students", ticket.studentId);
         const studentSnap = await getDoc(studentRef);
-
         if (studentSnap.exists()) {
-          const currentSpamCount = studentSnap.data().spamCount || 0;
-          const newSpamCount = currentSpamCount + 1;
-
-          await updateDoc(studentRef, {
-            spamCount: newSpamCount,
-            isSuspended: newSpamCount >= 3 // Still suspends them silently in the database
-          });
+          const newSpamCount = (studentSnap.data().spamCount || 0) + 1;
+          await updateDoc(studentRef, { spamCount: newSpamCount, isSuspended: newSpamCount >= 3 });
         }
       }
 
-      // 4. Trigger the completely static success modal
       setModalConfig({
         visible: true,
         title: "Spam Logged Successfully!",
-        message: "This ticket has been marked as spam and a strike has been applied to the student's account.",
+        message: "This ticket has been marked as spam and a strike has been applied.",
         isConfirm: false,
         isError: false,
+        isSpamPrompt: false,
         onConfirm: () => navigate("/dashboard")
       });
 
     } catch (error) {
       console.error("Spam Action Error:", error);
-      setModalConfig({ visible: true, title: "Action Failed", message: "Failed to mark as spam. Check Firebase rules.", isConfirm: false, isError: true, onConfirm: null });
+      setModalConfig({ visible: true, title: "Action Failed", message: "Failed to mark as spam.", isConfirm: false, isError: true, onConfirm: null });
     }
   };
 
@@ -397,12 +444,18 @@ const ManageTicket = () => {
             </div>
 
             <div style={styles(theme).formField}>
-              <label style={styles(theme).label}>Log Remark (Optional)</label>
+              <label style={styles(theme).label}>
+                {["RESOLVED", "REJECTED"].includes(status) 
+                  ? "Final Resolution Message (Visible to Student) *" 
+                  : "Log Remark (Optional)"}
+              </label>
               <textarea
                 style={styles(theme).textarea}
                 value={remarks}
                 onChange={(e) => setRemarks(e.target.value)}
-                placeholder="Add a note to the activity log..."
+                placeholder={["RESOLVED", "REJECTED"].includes(status) 
+                  ? "Explain exactly how this issue was fixed for the student..." 
+                  : "Add an internal note to the activity log..."}
               />
             </div>
 
@@ -422,7 +475,7 @@ const ManageTicket = () => {
                 Ticket is already marked as SPAM!
               </div>
             )}
-            {/* THEMED ACTION MODAL */}
+
             {modalConfig.visible && (
               <div style={styles(theme).modalOverlay}>
                 <div style={styles(theme).modalCard}>
@@ -432,16 +485,32 @@ const ManageTicket = () => {
                   <p style={{ margin: "0 0 24px 0", fontSize: "15px", color: theme.colors.text, lineHeight: "1.5", opacity: 0.9 }}>
                     {modalConfig.message}
                   </p>
+
+                  {modalConfig.isSpamPrompt && (
+                    <textarea
+                      placeholder="Enter the reason for marking as spam... (Required)"
+                      value={spamReason}
+                      onChange={(e) => setSpamReason(e.target.value)}
+                      style={{ ...styles(theme).textarea, marginBottom: "20px", minHeight: "80px", border: modalConfig.isError ? "1px solid #fca5a5" : undefined }}
+                    />
+                  )}
+
                   <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
                     {modalConfig.isConfirm && (
-                      <button onClick={() => setModalConfig({ ...modalConfig, visible: false })} style={styles(theme).outlineBtn}>
+                      <button onClick={() => setModalConfig({ ...modalConfig, visible: false, isSpamPrompt: false })} style={styles(theme).outlineBtn}>
                         Cancel
                       </button>
                     )}
                     <button
                       onClick={() => {
-                        setModalConfig({ ...modalConfig, visible: false });
-                        if (modalConfig.onConfirm) modalConfig.onConfirm();
+                        // If it's the spam prompt, call the live function directly to avoid stale state!
+                        if (modalConfig.isSpamPrompt) {
+                          executeMarkAsSpam();
+                        } else {
+                          // Standard modal behavior
+                          setModalConfig({ ...modalConfig, visible: false });
+                          if (modalConfig.onConfirm) modalConfig.onConfirm();
+                        }
                       }}
                       style={modalConfig.isError && modalConfig.isConfirm ? styles(theme).dangerBtn : styles(theme).primaryBtn}
                     >
@@ -525,8 +594,34 @@ const styles = (theme) => ({
 
   formField: { marginBottom: "20px" },
   label: { display: "block", fontSize: "12px", fontWeight: "700", color: theme.colors.subText, marginBottom: "10px", textTransform: 'uppercase', letterSpacing: "0.5px" },
-  select: { width: "100%", padding: "14px", borderRadius: "12px", border: `1px solid ${theme.colors.border}`, backgroundColor: theme.isDark ? "#1e293b" : "#f8fafc", color: theme.colors.text, fontSize: '14px', outline: 'none', transition: "all 0.2s" },
-  textarea: { width: "100%", padding: "14px", borderRadius: "12px", border: `1px solid ${theme.colors.border}`, backgroundColor: theme.isDark ? "#1e293b" : "#f8fafc", color: theme.colors.text, fontSize: '14px', minHeight: "100px", outline: 'none', resize: 'none', transition: "all 0.2s" },
+  select: { 
+    width: "100%", 
+    padding: "14px", 
+    borderRadius: "12px", 
+    border: `1px solid ${theme.colors.border}`, 
+    backgroundColor: theme.isDark ? "#1e293b" : "#f8fafc", 
+    color: theme.colors.text, 
+    fontSize: '14px', 
+    outline: 'none', 
+    transition: "all 0.2s",
+    boxSizing: "border-box", // <-- Fixes width overflow
+    fontFamily: "inherit"    // <-- Matches app font
+  },
+  textarea: { 
+    width: "100%", 
+    padding: "14px", 
+    borderRadius: "12px", 
+    border: `1px solid ${theme.colors.border}`, 
+    backgroundColor: theme.isDark ? "#1e293b" : "#f8fafc", 
+    color: theme.colors.text, 
+    fontSize: '14px', 
+    minHeight: "100px", 
+    outline: 'none', 
+    resize: 'vertical',      // <-- Allows vertical resizing only, stops horizontal breaking
+    transition: "all 0.2s",
+    boxSizing: "border-box", // <-- Fixes width overflow
+    fontFamily: "inherit"    // <-- Matches app font
+  },
 
   forwardBtn: {
     width: "100%", padding: "16px", background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)", color: "#fff",

@@ -17,6 +17,13 @@ const DEPARTMENT_MAP = {
   "Parking": ["Security In-charge"],
   "Other": ["Librarian", "General Coordinator"]
 };
+const BRANCH_MAP = {
+  "HOD - IT": "IT",
+  "HOD - Electrical": "EE",
+  "HOD - Mechanical": "ME",
+  "HOD - Civil": "CE",
+  "HOD - E&TC": "ETC",
+};
 
 const DEPARTMENTS = Object.keys(DEPARTMENT_MAP);
 
@@ -70,7 +77,16 @@ const ManageAdmins = () => {
       }
 
       const snap = await getDocs(collection(db, "admins"));
-      setAdmins(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+      // Sort: Principal always first
+      data.sort((a, b) => {
+        if (a.role === "PRINCIPAL") return -1;
+        if (b.role === "PRINCIPAL") return 1;
+        return a.name?.localeCompare(b.name);
+      });
+
+      setAdmins(data);
       setLoading(false);
     };
     fetchAdmins();
@@ -104,7 +120,7 @@ const ManageAdmins = () => {
     let newUid = null;
 
     try {
-     
+
       const snap = await getDocs(collection(db, "admins"));
       const latestAdmins = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
@@ -117,7 +133,7 @@ const ManageAdmins = () => {
       );
 
       if (emailExists) {
-        setModalError("This email is already assigned to another official."); // ✅ Replaced alert
+        setModalError("This email is already assigned to another official."); 
         setModalLoading(false);
         return;
       }
@@ -132,7 +148,7 @@ const ManageAdmins = () => {
       );
 
       if (roleExists) {
-        setModalError(`${newAdmin.roleTitle} already exists in ${newAdmin.department}.`); // ✅ Replaced alert
+        setModalError(`${newAdmin.roleTitle} already exists in ${newAdmin.department}.`);
         setModalLoading(false);
         return;
       }
@@ -149,6 +165,9 @@ const ManageAdmins = () => {
         role: "HOD",
         department: newAdmin.department,
         roleTitle: newAdmin.roleTitle,
+        ...(BRANCH_MAP[newAdmin.roleTitle] && {
+          branchCode: BRANCH_MAP[newAdmin.roleTitle]
+        }),
         isActive: true,
         createdAt: new Date()
       };
@@ -171,7 +190,7 @@ const ManageAdmins = () => {
         } catch (cleanupError) { console.error("Rollback failed:", cleanupError); }
       }
       if (secondaryApp) await deleteApp(secondaryApp);
-      
+
       if (error.code === 'auth/email-already-in-use') {
         setModalError("This email already exists and is registered to another account.");
       } else {
@@ -342,7 +361,6 @@ const ManageAdmins = () => {
   );
 };
 
-// --- STYLES ---
 const modalOverlay = { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.6)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 100, backdropFilter: "blur(4px)" };
 const modalCard = { width: "450px", borderRadius: "20px", padding: "32px", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)" };
 
